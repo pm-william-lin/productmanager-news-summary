@@ -6,6 +6,10 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 from time import mktime
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 RSS_FEEDS = {
     "Lenny's Newsletter": "https://www.lennysnewsletter.com/feed",
     "SVPG": "https://www.svpg.com/feed/",
@@ -61,7 +65,6 @@ def scrape_mindtheproduct(days=DAYS):
             continue
         month = MONTHS[match.group(1)]
         day = int(match.group(2))
-        # Infer year: use current year, but if the date is in the future, use last year
         year = today.year
         try:
             pub_date = datetime(year, month, day, tzinfo=timezone.utc)
@@ -72,7 +75,6 @@ def scrape_mindtheproduct(days=DAYS):
         if pub_date < cutoff:
             continue
 
-        # Walk up to find the nearest <a> with article href
         parent = div
         for _ in range(10):
             parent = parent.parent
@@ -84,7 +86,6 @@ def scrape_mindtheproduct(days=DAYS):
                 if href in seen:
                     break
                 seen.add(href)
-                # Extract clean title
                 all_text = link.get_text(separator="|", strip=True).split("|")
                 candidates = [
                     t for t in all_text
@@ -101,6 +102,91 @@ def scrape_mindtheproduct(days=DAYS):
     return articles
 
 
+# --- AI 摘要 ---
+
+def fetch_article_content(url):
+    """抓取文章網頁正文。"""
+    try:
+        resp = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except requests.RequestException:
+        return None
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # 移除不需要的元素
+    for tag in soup.find_all(["script", "style", "nav", "footer", "header"]):
+        tag.decompose()
+
+    # 嘗試找 article 標籤，否則用 body
+    article = soup.find("article") or soup.find("body")
+    if not article:
+        return None
+
+    text = article.get_text(separator="\n", strip=True)
+    # 截斷過長的內容（節省 API token）
+    return text[:5000] if text else None
+
+
+def summarize_article(title, content):
+    """用 Claude API 產生文章摘要。"""
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+
+    import anthropic
+    client = anthropic.Anthropic(api_key=api_key)
+
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=300,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"請用繁體中文為以下文章寫 3-5 句摘要，重點摘述文章的核心觀點和關鍵洞見。\n\n"
+                    f"文章標題：{title}\n\n"
+                    f"文章內容：\n{content}"
+                ),
+            }],
+        )
+        return message.content[0].text
+    except Exception as e:
+        print(f"    AI 摘要失敗: {e}")
+        return None
+
+
+def summarize_all_articles(all_articles):
+    """對所有文章產生 AI 摘要。"""
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        print("  未設定 ANTHROPIC_API_KEY，跳過 AI 摘要")
+        return
+
+    total = sum(len(arts) for arts in all_articles.values())
+    if total == 0:
+        return
+
+    print(f"\n產生 AI 摘要（共 {total} 篇）...")
+    count = 0
+    for source, articles in all_articles.items():
+        for article in articles:
+            count += 1
+            print(f"  [{count}/{total}] {article['title'][:50]}...")
+            content = fetch_article_content(article["link"])
+            if content:
+                summary = summarize_article(article["title"], content)
+                article["summary"] = summary
+            else:
+                article["summary"] = None
+
+
+# --- Markdown 產出 ---
+
 def build_markdown(all_articles, today):
     """Build markdown string from collected articles."""
     lines = [f"# 文章摘要 - {today}", ""]
@@ -115,8 +201,71 @@ def build_markdown(all_articles, today):
         for a in articles:
             lines.append(f"| {a['date']} | [{a['title']}]({a['link']}) |")
         lines.append("")
+        # 加上每篇文章的摘要
+        for a in articles:
+            if a.get("summary"):
+                lines.append(f"**{a['title']}**")
+                lines.append(f"{a['summary']}")
+                lines.append("")
     return "\n".join(lines)
 
+
+# --- LINE 通知 ---
+
+def build_line_message(all_articles, today):
+    """將摘要轉為 LINE 適合的純文字格式。"""
+    lines = [f"📰 文章摘要 - {today}", ""]
+    has_articles = False
+    for source, articles in all_articles.items():
+        if not articles:
+            continue
+        has_articles = True
+        lines.append(f"【{source}】")
+        for a in articles:
+            lines.append(f"📌 {a['title']}")
+            if a.get("summary"):
+                lines.append(a["summary"])
+            lines.append(f"🔗 {a['link']}")
+            lines.append("")
+        lines.append("---")
+    if not has_articles:
+        lines.append("今天沒有新文章。")
+    return "\n".join(lines)
+
+
+def send_line_message(text):
+    """發送訊息到 LINE 群組。"""
+    token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+    group_id = os.getenv("LINE_GROUP_ID")
+    if not token or not group_id:
+        print("  未設定 LINE_CHANNEL_ACCESS_TOKEN 或 LINE_GROUP_ID，跳過 LINE 通知")
+        return False
+
+    # LINE 訊息限制 5000 字元
+    if len(text) > 5000:
+        text = text[:4990] + "\n..."
+
+    resp = requests.post(
+        "https://api.line.me/v2/bot/message/push",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "to": group_id,
+            "messages": [{"type": "text", "text": text}],
+        },
+        timeout=15,
+    )
+    if resp.status_code == 200:
+        print("  LINE 訊息發送成功")
+        return True
+    else:
+        print(f"  LINE 發送失敗: {resp.status_code} {resp.text}")
+        return False
+
+
+# --- 前置檢查 ---
 
 def run_preflight_checks():
     """執行前置檢查，確認所有來源可正常抓取。"""
@@ -133,6 +282,8 @@ def run_preflight_checks():
         raise SystemExit(1)
     print()
 
+
+# --- 主程式 ---
 
 def main():
     run_preflight_checks()
@@ -153,17 +304,23 @@ def main():
     all_articles["Mind the Product"] = articles
     print(f"  找到 {len(articles)} 篇最近 {DAYS} 天的文章")
 
-    md = build_markdown(all_articles, today)
+    # AI 摘要
+    summarize_all_articles(all_articles)
 
-    # 印到終端
+    # Markdown 產出
+    md = build_markdown(all_articles, today)
     print("\n" + md)
 
-    # 寫入檔案
     os.makedirs("output", exist_ok=True)
     output_path = os.path.join("output", f"digest_{today}.md")
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(md)
     print(f"\n已寫入 {output_path}")
+
+    # LINE 通知
+    print("\n發送 LINE 通知 ...")
+    line_msg = build_line_message(all_articles, today)
+    send_line_message(line_msg)
 
 
 if __name__ == "__main__":
