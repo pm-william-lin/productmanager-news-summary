@@ -26,7 +26,9 @@ MONTHS = {
 
 def fetch_recent_articles(feed_url, days=DAYS):
     """Parse RSS feed and return articles from the last `days` days."""
-    feed = feedparser.parse(feed_url)
+    resp = requests.get(feed_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+    resp.raise_for_status()
+    feed = feedparser.parse(resp.content)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     articles = []
     for entry in feed.entries:
