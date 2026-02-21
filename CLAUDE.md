@@ -32,6 +32,7 @@ python3 test_fetch.py              # 單獨跑測試
 
 - 有 RSS feed：加到 `RSS_FEEDS` dict 即可，現有邏輯自動處理
 - 無 RSS feed：需寫專屬爬蟲函式，在 `main()` 中呼叫，並在 `test_fetch.py` 加對應測試
+- **Substack 來源注意**：Substack RSS feed 在 GitHub Actions 的雲端 IP 會被擋。目前 Andrew Chen 就有此問題（本地正常，CI 上被擋）。若新增的來源也是 Substack，需提醒使用者考慮 proxy 方案（付費 proxy 服務、RSS bridge、或自架 proxy）
 
 ## Planned but Not Yet Implemented
 
