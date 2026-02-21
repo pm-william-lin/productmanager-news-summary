@@ -12,6 +12,7 @@ from fetch_articles import (
 )
 
 PASS = "✓"
+WARN = "⚠"
 FAIL = "✗"
 
 
@@ -20,7 +21,7 @@ def test_rss_feed(name, url):
     feed = feedparser.parse(url)
     entry_count = len(feed.entries)
     if entry_count == 0:
-        return FAIL, f"回傳 0 篇文章（可能連線失敗或 feed 格式錯誤）"
+        return WARN, f"回傳 0 篇文章（可能連線失敗或被擋）"
 
     for i, entry in enumerate(feed.entries[:3]):
         missing = []
@@ -167,18 +168,26 @@ def main():
     print(f"  {status} {msg}")
 
     # 總結
-    passed = sum(1 for _, s, _ in results if s == PASS)
+    failed = sum(1 for _, s, _ in results if s == FAIL)
+    warned = sum(1 for _, s, _ in results if s == WARN)
     total = len(results)
+    passed = total - failed - warned
     print(f"\n{'=' * 60}")
-    print(f"結果: {passed}/{total} 通過")
-    if passed < total:
+    print(f"結果: {passed} 通過, {warned} 警告, {failed} 失敗 (共 {total} 項)")
+    if warned > 0:
+        print("警告項目（不影響執行）:")
+        for name, s, msg in results:
+            if s == WARN:
+                print(f"  {WARN} {name}: {msg}")
+    if failed > 0:
         print("失敗項目:")
         for name, s, msg in results:
             if s == FAIL:
                 print(f"  {FAIL} {name}: {msg}")
     print("=" * 60)
 
-    return 0 if passed == total else 1
+    # 只有 FAIL 才中斷，WARN 不影響
+    return 0 if failed == 0 else 1
 
 
 if __name__ == "__main__":

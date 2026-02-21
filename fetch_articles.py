@@ -294,13 +294,21 @@ def main():
     # RSS sources
     for source, url in RSS_FEEDS.items():
         print(f"抓取 {source} ...")
-        articles = fetch_recent_articles(url)
+        try:
+            articles = fetch_recent_articles(url)
+        except Exception as e:
+            print(f"  抓取失敗，跳過: {e}")
+            articles = []
         all_articles[source] = articles
         print(f"  找到 {len(articles)} 篇最近 {DAYS} 天的文章")
 
     # Scrape sources
     print("抓取 Mind the Product ...")
-    articles = scrape_mindtheproduct()
+    try:
+        articles = scrape_mindtheproduct()
+    except Exception as e:
+        print(f"  抓取失敗，跳過: {e}")
+        articles = []
     all_articles["Mind the Product"] = articles
     print(f"  找到 {len(articles)} 篇最近 {DAYS} 天的文章")
 
