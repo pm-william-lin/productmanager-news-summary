@@ -42,6 +42,9 @@ send_line_message()        # 透過 LINE Messaging API 發送到群組
 | SVPG | RSS | |
 | Intercom Blog | RSS | |
 | Andrew Chen | RSS | Substack，GitHub Actions 上被擋（僅警告不中斷） |
+| Stratechery | RSS | Ben Thompson，科技產業策略分析，幾乎每天更新 |
+| The Pragmatic Engineer | RSS | Gergely Orosz，工程管理 + 產品視角，每週 2-3 篇 |
+| Casey Winters | RSS | 前 Grubhub/Pinterest，增長策略，Substack，GitHub Actions 上可能被擋 |
 | Mind the Product | HTML 爬蟲 | 無標準 RSS，從首頁解析日期（`FEB 19` 格式）和連結 |
 
 - RSS 來源定義在 `RSS_FEEDS` dict，由 `fetch_recent_articles()` 統一處理

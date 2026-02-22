@@ -15,6 +15,9 @@ RSS_FEEDS = {
     "SVPG": "https://www.svpg.com/feed/",
     "Intercom Blog": "https://www.intercom.com/blog/feed/",
     "Andrew Chen": "https://andrewchen.substack.com/feed",
+    "Stratechery": "https://stratechery.com/feed/",
+    "The Pragmatic Engineer": "https://newsletter.pragmaticengineer.com/feed",
+    "Casey Winters": "https://caseyaccidental.com/feed/",
 }
 
 DAYS = 1
