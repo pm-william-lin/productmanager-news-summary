@@ -18,6 +18,7 @@ RSS_FEEDS = {
     "Stratechery": "https://stratechery.com/feed/",
     "The Pragmatic Engineer": "https://newsletter.pragmaticengineer.com/feed",
     "Casey Winters": "https://caseyaccidental.com/feed/",
+    "Nikitha": "https://nikitha.substack.com/feed",
 }
 
 DAYS = 1

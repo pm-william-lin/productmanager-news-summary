@@ -39,6 +39,7 @@ Webhook Test ───────────────────┘       
 | Stratechery | Ben Thompson，科技產業策略分析，幾乎每天更新 |
 | The Pragmatic Engineer | Gergely Orosz，工程管理 + 產品視角 |
 | Casey Winters | Substack，前 Grubhub/Pinterest，增長策略 |
+| Nikitha | Substack，PM / AI 基礎設施 / 新創 |
 
 所有來源都是 RSS，定義在 n8n `Source Config` Code node 中。
 
